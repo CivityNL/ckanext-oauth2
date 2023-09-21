@@ -39,20 +39,27 @@ import six
 import jwt
 
 import constants
+from ckan.model.user import User
+from ckanext.oauth2.model import Oauth2UserToken
 
 
 log = logging.getLogger(__name__)
 
 
 def generate_state(url):
-    return b64encode(bytes(json.dumps({constants.CAME_FROM_FIELD: url})))
+    return b64encode(bytes(json.dumps({constants.CAME_FROM_FIELD: url}).encode("utf-8")))
 
 
 def get_came_from(state):
     return json.loads(b64decode(state)).get(constants.CAME_FROM_FIELD, '/')
 
 
+def get_config(key, default=''):
+    return toolkit.config.get(key, default).strip()
+
+
 REQUIRED_CONF = ("authorization_endpoint", "token_endpoint", "client_id", "client_secret", "profile_api_url", "profile_api_user_field", "profile_api_mail_field")
+TRUES = ("true", "1", "on")
 
 
 class OAuth2Helper(object):
@@ -63,26 +70,28 @@ class OAuth2Helper(object):
         if self.verify_https and os.environ.get("REQUESTS_CA_BUNDLE", "").strip() != "":
             self.verify_https = os.environ["REQUESTS_CA_BUNDLE"].strip()
 
-        self.jwt_enable = six.text_type(os.environ.get('CKAN_OAUTH2_JWT_ENABLE', toolkit.config.get('ckan.oauth2.jwt.enable',''))).strip().lower() in ("true", "1", "on")
+        self.jwt_enable = get_config(constants.JWT_ENABLE).lower() in TRUES
 
-        self.legacy_idm = six.text_type(os.environ.get('CKAN_OAUTH2_LEGACY_IDM', toolkit.config.get('ckan.oauth2.legacy_idm', ''))).strip().lower() in ("true", "1", "on")
-        self.authorization_endpoint = six.text_type(os.environ.get('CKAN_OAUTH2_AUTHORIZATION_ENDPOINT', toolkit.config.get('ckan.oauth2.authorization_endpoint', ''))).strip()
-        self.token_endpoint = six.text_type(os.environ.get('CKAN_OAUTH2_TOKEN_ENDPOINT', toolkit.config.get('ckan.oauth2.token_endpoint', ''))).strip()
-        self.profile_api_url = six.text_type(os.environ.get('CKAN_OAUTH2_PROFILE_API_URL', toolkit.config.get('ckan.oauth2.profile_api_url', ''))).strip()
-        self.client_id = six.text_type(os.environ.get('CKAN_OAUTH2_CLIENT_ID', toolkit.config.get('ckan.oauth2.client_id', ''))).strip()
-        self.client_secret = six.text_type(os.environ.get('CKAN_OAUTH2_CLIENT_SECRET', toolkit.config.get('ckan.oauth2.client_secret', ''))).strip()
-        self.scope = six.text_type(os.environ.get('CKAN_OAUTH2_SCOPE', toolkit.config.get('ckan.oauth2.scope', ''))).strip()
-        self.rememberer_name = six.text_type(os.environ.get('CKAN_OAUTH2_REMEMBER_NAME', toolkit.config.get('ckan.oauth2.rememberer_name', 'auth_tkt'))).strip()
-        self.profile_api_user_field = six.text_type(os.environ.get('CKAN_OAUTH2_PROFILE_API_USER_FIELD', toolkit.config.get('ckan.oauth2.profile_api_user_field', ''))).strip()
-        self.profile_api_fullname_field = six.text_type(os.environ.get('CKAN_OAUTH2_PROFILE_API_FULLNAME_FIELD', toolkit.config.get('ckan.oauth2.profile_api_fullname_field', ''))).strip()
-        self.profile_api_mail_field = six.text_type(os.environ.get('CKAN_OAUTH2_PROFILE_API_MAIL_FIELD', toolkit.config.get('ckan.oauth2.profile_api_mail_field', ''))).strip()
-        self.profile_api_groupmembership_field = six.text_type(os.environ.get('CKAN_OAUTH2_PROFILE_API_GROUPMEMBERSHIP_FIELD', toolkit.config.get('ckan.oauth2.profile_api_groupmembership_field', ''))).strip()
-        self.sysadmin_group_name = six.text_type(os.environ.get('CKAN_OAUTH2_SYSADMIN_GROUP_NAME', toolkit.config.get('ckan.oauth2.sysadmin_group_name', ''))).strip()
+        self.legacy_idm = get_config(constants.LEGACY_IDM).strip().lower() in TRUES
+        self.authorization_endpoint = get_config(constants.AUTHORIZATION_ENDPOINT)
+        self.token_endpoint = get_config(constants.TOKEN_ENDPOINT)
+        self.profile_api_url = get_config(constants.PROFILE_API_URL)
+        self.client_id = get_config(constants.CLIENT_ID)
+        self.client_secret = get_config(constants.CLIENT_SECRET)
+        self.scope = get_config(constants.SCOPE)
+        self.rememberer_name = get_config(constants.REMEMBERER_NAME, 'auth_tkt')
+        self.profile_api_user_field = get_config(constants.PROFILE_FIELD_USER)
+        self.profile_api_fullname_field = get_config(constants.PROFILE_FIELD_FULLNAME)
+        self.profile_api_mail_field = get_config(constants.PROFILE_FIELD_EMAIL)
+        self.profile_api_groupmembership_field = get_config(constants.PROFILE_FIELD_GROUPMEMBERSHIP)
+        self.sysadmin_group_name = get_config(constants.SYSADMIN_GROUP_NAME)
 
-        self.redirect_uri = urljoin(urljoin(toolkit.config.get('ckan.site_url', 'http://localhost:5000'), toolkit.config.get('ckan.root_path')), constants.REDIRECT_URL)
-
-        # Init db
-        db.init_db(model)
+        self.redirect_uri = urljoin(
+            urljoin(
+                toolkit.config.get('ckan.site_url', 'http://localhost:5000'),
+                toolkit.config.get('ckan.root_path')
+            ), constants.REDIRECT_URL
+        )
 
         missing = [key for key in REQUIRED_CONF if getattr(self, key, "") == ""]
         if missing:
@@ -176,14 +185,15 @@ class OAuth2Helper(object):
 
         # In CKAN can exists more than one user associated with the same email
         # Some providers, like Google and FIWARE only allows one account per email
-        user = None
-        users = model.User.by_email(email)
-        if len(users) == 1:
-            user = users[0]
+        user = User.get(user_name)
 
         # If the user does not exist, we have to create it...
         if user is None:
-            user = model.User(email=email)
+            user = User(email=email)
+
+        # When a user successfully logs in, we set the user state to active.
+        # This will convert a user from deleted into active when needed.
+        user.state = 'active'
 
         # Now we update his/her user_name with the one provided by the OAuth2 service
         # In the future, users will be obtained based on this field
@@ -214,44 +224,61 @@ class OAuth2Helper(object):
         rememberer = self._get_rememberer(environ)
         identity = {'repoze.who.userid': user_name}
         headers = rememberer.remember(environ, identity)
-        for header, value in headers:
-            toolkit.response.headers.add(header, value)
+        return headers
 
-    def redirect_from_callback(self):
+
+    def redirect_from_callback(self, headers):
         '''Redirect to the callback URL after a successful authentication.'''
         state = toolkit.request.params.get('state')
         came_from = get_came_from(state)
-        toolkit.response.status = 302
-        toolkit.response.location = came_from
+        response = toolkit.h.redirect_to(came_from)
+        for header, value in headers:
+            response.headers.add(header, value)
+        return response
+
 
     def get_stored_token(self, user_name):
-        user_token = db.UserToken.by_user_name(user_name=user_name)
-        if user_token:
+        oauth2_user_token = Oauth2UserToken.by_user_name(user_name=user_name)
+        if oauth2_user_token:
             return {
-                'access_token': user_token.access_token,
-                'refresh_token': user_token.refresh_token,
-                'expires_in': user_token.expires_in,
-                'token_type': user_token.token_type
+                'access_token': oauth2_user_token.access_token,
+                'expires_at': oauth2_user_token.expires_at,
+                'expires_in': oauth2_user_token.expires_in,
+                'id_token': oauth2_user_token.id_token,
+                'not-before-policy': oauth2_user_token.not_before_policy,
+                'refresh_expires_in': oauth2_user_token.refresh_expires_in,
+                'refresh_token': oauth2_user_token.refresh_token,
+                'session_state': oauth2_user_token.session_state,
+                'scope': oauth2_user_token.scope.split() if oauth2_user_token.scope else None,
+                'token_type': oauth2_user_token.token_type,
             }
 
     def update_token(self, user_name, token):
 
-        user_token = db.UserToken.by_user_name(user_name=user_name)
+        oauth2_user_token = Oauth2UserToken.by_user_name(user_name=user_name)
         # Create the user if it does not exist
-        if not user_token:
-            user_token = db.UserToken()
-            user_token.user_name = user_name
-        # Save the new token
-        user_token.access_token = token['access_token']
-        user_token.token_type = token['token_type']
-        user_token.refresh_token = token.get('refresh_token')
-        if 'expires_in' in token:
-            user_token.expires_in = token['expires_in']
-        else:
-            access_token = jwt.decode(user_token.access_token, verify=False)
-            user_token.expires_in = access_token['exp'] - access_token['iat']
+        if not oauth2_user_token:
+            oauth2_user_token = Oauth2UserToken()
+            oauth2_user_token.user_name = user_name
 
-        model.Session.add(user_token)
+        # Save the new token
+        oauth2_user_token.access_token = token['access_token']
+        oauth2_user_token.expires_at = token['expires_at']
+        oauth2_user_token.id_token = token['id_token']
+        oauth2_user_token.not_before_policy = token['not-before-policy']
+        oauth2_user_token.refresh_expires_in = token['refresh_expires_in']
+        oauth2_user_token.refresh_token = token['refresh_token']
+        oauth2_user_token.session_state = token['session_state']
+        oauth2_user_token.scope = " ".join(token['scope']) if isinstance(token['scope'], list) else token['scope']
+        oauth2_user_token.token_type = token['token_type']
+
+        if 'expires_in' in token:
+            oauth2_user_token.expires_in = token['expires_in']
+        else:
+            access_token = jwt.decode(oauth2_user_token.access_token, verify=False)
+            oauth2_user_token.expires_in = access_token['exp'] - access_token['iat']
+
+        model.Session.add(oauth2_user_token)
         model.Session.commit()
 
     def refresh_token(self, user_name):
@@ -270,4 +297,4 @@ class OAuth2Helper(object):
             log.info('Token for user %s has been updated properly' % user_name)
             return token
         else:
-            log.warn('User %s has no refresh token' % user_name)
+            log.warning('User %s has no refresh token' % user_name)

@@ -75,8 +75,8 @@ setup(
         'nose>=1.3.0'
     ],
     install_requires=[
-        'requests-oauthlib==0.8.0',
-        'pyjwt==1.7.1',
+        'requests-oauthlib==1.3.1',
+        'pyjwt==2.8.0',
     ],
     tests_require=[
         'parameterized',
@@ -86,6 +86,9 @@ setup(
     entry_points={
         'ckan.plugins': [
             'oauth2 = ckanext.oauth2.plugin:OAuth2Plugin',
+        ],
+        'paste.paster_command': [
+            'oauth2 = ckanext.oauth2.command:OAuth2Command'
         ],
         'nose.plugins': [
             'pylons = pylons.test:PylonsPlugin'
