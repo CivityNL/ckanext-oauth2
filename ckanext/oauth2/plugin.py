@@ -18,18 +18,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with OAuth2 CKAN Extension.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import unicode_literals
-
 import logging
-import oauth2
-import os
-
+from ckanext.oauth2 import oauth2, constants
+import requests
 from functools import partial
 from ckan import plugins
 from ckan.plugins import toolkit
-
-
-
 from ckanext.oauth2 import auth, views, cli
 
 
@@ -44,7 +38,6 @@ class OAuth2Plugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IRoutes, inherit=True)
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IBlueprint)
-    plugins.implements(plugins.ITemplateHelpers)
     plugins.implements(plugins.IClick)
 
     def __init__(self, name=None):
@@ -85,7 +78,7 @@ class OAuth2Plugin(plugins.SingletonPlugin):
         def _refresh_and_save_token(user_name):
             new_token = self.oauth2helper.refresh_token(user_name)
             if new_token:
-                toolkit.g.usertoken = new_token
+                toolkit.g.oauth_user_token = new_token
 
         environ = toolkit.request.environ
         apikey = toolkit.request.headers.get(self.authorization_header, '')
@@ -113,11 +106,26 @@ class OAuth2Plugin(plugins.SingletonPlugin):
         # If we have been able to log in the user (via API or Session)
         if user_name:
             toolkit.g.user = user_name
-            toolkit.g.usertoken = self.oauth2helper.get_stored_token(user_name)
-            toolkit.g.usertoken_refresh = partial(_refresh_and_save_token, user_name)
+            toolkit.g.oauth_user_token = self.oauth2helper.get_stored_token(user_name)
+            toolkit.g.oauth_user_token_refresh = partial(_refresh_and_save_token, user_name)
         else:
             toolkit.g.user = None
             log.warning('The user is not currently logged...')
+
+    # IAuthenticator
+    # noinspection PyMethodMayBeStatic
+    def logout(self):
+        log.debug('logout')
+        oauth_user_token = getattr(toolkit.g, "oauth_user_token", None)
+        if oauth_user_token:
+            log.debug('logout with oauth_user_token = {}'.format(oauth_user_token))
+            del toolkit.request.environ['repoze.who.identity']
+            # check the validity of the token
+            params = {"id_token_hint": oauth_user_token['id_token']}
+            log.debug('logout_url = [{}], params = [{}]'.format(self.logout_url, params))
+            requests.get(self.logout_url, params=params)
+            self.oauth2helper.delete_stored_token(toolkit.g.user)
+
 
     # IAuthFunctions
     def get_auth_functions(self):
@@ -132,10 +140,11 @@ class OAuth2Plugin(plugins.SingletonPlugin):
     # IConfigurer
     def update_config(self, config):
         # Update our configuration
-        self.register_url = os.environ.get("CKAN_OAUTH2_REGISTER_URL", config.get('ckan.oauth2.register_url', None))
-        self.reset_url = os.environ.get("CKAN_OAUTH2_RESET_URL", config.get('ckan.oauth2.reset_url', None))
-        self.edit_url = os.environ.get("CKAN_OAUTH2_EDIT_URL", config.get('ckan.oauth2.edit_url', None))
-        self.authorization_header = os.environ.get("CKAN_OAUTH2_AUTHORIZATION_HEADER", config.get('ckan.oauth2.authorization_header', 'Authorization')).lower()
+        self.register_url = config.get(constants.REGISTER_ENDPOINT, None)
+        self.reset_url = config.get(constants.RESET_ENDPOINT, None)
+        self.edit_url = config.get(constants.EDIT_ENDPOINT, None)
+        self.authorization_header = config.get(constants.AUTHORIZATION_HEADER, 'Authorization').lower()
+        self.logout_url = config.get(constants.LOGOUT_ENDPOINT, None)
 
         # Add this plugin's templates dir to CKAN's extra_template_paths, so
         # that CKAN will use this plugin's custom templates.

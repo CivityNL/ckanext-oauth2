@@ -5,7 +5,7 @@ from ckanext.oauth2.oauth2 import get_came_from
 from ckanext.oauth2 import constants
 from ckan.common import session
 from ckan.plugins import toolkit
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 
 def _get_previous_page(default_page):
@@ -77,6 +77,6 @@ def get_blueprints(oauth2helper):
     oauth2_blueprint = Blueprint('oauth2', __name__)
 
     oauth2_blueprint.add_url_rule('/user/login', endpoint="login", view_func=login(oauth2helper))
-    oauth2_blueprint.add_url_rule('/oauth2/callback', endpoint="callback", view_func=callback(oauth2helper))
+    oauth2_blueprint.add_url_rule('/{}'.format(constants.REDIRECT_URL), endpoint="callback", view_func=callback(oauth2helper))
 
     return [oauth2_blueprint]

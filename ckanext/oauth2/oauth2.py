@@ -23,10 +23,9 @@ from __future__ import unicode_literals
 
 import base64
 import ckan.model as model
-import db
 import json
 import logging
-from six.moves.urllib.parse import urljoin
+from urllib.parse import urljoin
 import os
 
 from base64 import b64encode, b64decode
@@ -38,7 +37,7 @@ import six
 
 import jwt
 
-import constants
+from ckanext.oauth2 import constants
 from ckan.model.user import User
 from ckanext.oauth2.model import Oauth2UserToken
 
@@ -106,7 +105,7 @@ class OAuth2Helper(object):
         auth_url, _ = oauth.authorization_url(self.authorization_endpoint)
         log.debug('Challenge: Redirecting challenge to page {0}'.format(auth_url))
         # CKAN 2.6 only supports bytes
-        return toolkit.redirect_to(auth_url.encode('utf-8'))
+        return toolkit.redirect_to(auth_url)
 
     def get_token(self):
         oauth = OAuth2Session(self.client_id, redirect_uri=self.redirect_uri, scope=self.scope)
@@ -252,6 +251,15 @@ class OAuth2Helper(object):
                 'scope': oauth2_user_token.scope.split() if oauth2_user_token.scope else None,
                 'token_type': oauth2_user_token.token_type,
             }
+
+
+    def delete_stored_token(self, user_name):
+        oauth2_user_token = Oauth2UserToken.by_user_name(user_name=user_name)
+        if oauth2_user_token:
+            # Remove the token from database
+            model.Session.delete(oauth2_user_token)
+            model.Session.commit()
+            model.Session.remove()
 
     def update_token(self, user_name, token):
 
