@@ -17,7 +17,7 @@ def initdb():
     """
         keycloak initdb
     """
-    oauth2_user_token_table.create()
+    oauth2_user_token_table.create(checkfirst=True)
 
 
 @oauth2.command()
