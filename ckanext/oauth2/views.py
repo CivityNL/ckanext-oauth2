@@ -29,16 +29,10 @@ def _get_previous_page(default_page):
     return came_from_url
 
 
-def login(oauth2helper):
-    def inner():
-        # Log in attempts are fired when the user is not logged in and they click
-        # on the login button
-
-        # Get the page where the user was when the login attempt was fired
-        # When the user is not logged in, he/she should be redirected to the dashboard when
-        # the system cannot get the previous page
+def _challenge(oauth2helper, challenge_url):
+    def inner(id=None):
         came_from_url = _get_previous_page(constants.INITIAL_PAGE)
-        return oauth2helper.challenge(came_from_url)
+        return oauth2helper.challenge(challenge_url, came_from_url)
     return inner
 
 
@@ -73,10 +67,18 @@ def callback(oauth2helper):
 
 
 
-def get_blueprints(oauth2helper):
+def get_blueprints(plugin):
     oauth2_blueprint = Blueprint('oauth2', __name__)
 
-    oauth2_blueprint.add_url_rule('/user/login', endpoint="login", view_func=login(oauth2helper))
-    oauth2_blueprint.add_url_rule('/{}'.format(constants.REDIRECT_URL), endpoint="callback", view_func=callback(oauth2helper))
+    oauth2_blueprint.add_url_rule('/{}'.format(constants.REDIRECT_URL), endpoint="callback", view_func=callback(plugin.oauth2helper))
+    oauth2_blueprint.add_url_rule('/user/login', endpoint="login", view_func=_challenge(plugin.oauth2helper, plugin.authorization_endpoint))
+
+    if plugin.register_url:
+        oauth2_blueprint.add_url_rule('/user/register', endpoint="register", view_func=_challenge(plugin.oauth2helper, plugin.register_url))
+    if plugin.reset_url:
+        oauth2_blueprint.add_url_rule('/user/reset', endpoint="reset", view_func=_challenge(plugin.oauth2helper, plugin.reset_url))
+    if plugin.edit_url:
+        oauth2_blueprint.add_url_rule('/user/edit/<id>', endpoint="edit", view_func=_challenge(plugin.oauth2helper, plugin.edit_url))
+
 
     return [oauth2_blueprint]

@@ -35,15 +35,17 @@ class OAuth2Plugin(plugins.SingletonPlugin):
 
     plugins.implements(plugins.IAuthenticator, inherit=True)
     plugins.implements(plugins.IAuthFunctions, inherit=True)
-    plugins.implements(plugins.IRoutes, inherit=True)
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IBlueprint)
     plugins.implements(plugins.IClick)
 
-    def __init__(self, name=None):
-        '''Store the OAuth 2 client configuration'''
-        log.debug('Init OAuth2 extension')
-        self.oauth2helper = oauth2.OAuth2Helper()
+    register_url = None
+    reset_url = None
+    edit_url = None
+    authorization_header = None
+    logout_url = None
+    authorization_endpoint = None
+    oauth2helper = None
 
     # IClick
     def get_commands(self):
@@ -51,25 +53,7 @@ class OAuth2Plugin(plugins.SingletonPlugin):
 
     # IBlueprint
     def get_blueprint(self):
-        return views.get_blueprints(self.oauth2helper)
-
-    # IRoutes
-    def before_map(self, map):
-        log.debug('Setting up the redirections to the OAuth2 service')
-
-        # Redirect the user to the OAuth service register page
-        if self.register_url:
-            map.redirect('/user/register', self.register_url)
-
-        # Redirect the user to the OAuth service reset page
-        if self.reset_url:
-            map.redirect('/user/reset', self.reset_url)
-
-        # Redirect the user to the OAuth service reset page
-        if self.edit_url:
-            map.redirect('/user/edit/{user}', self.edit_url)
-
-        return map
+        return views.get_blueprints(self)
 
     # IAuthenticator
     def identify(self):
@@ -145,6 +129,9 @@ class OAuth2Plugin(plugins.SingletonPlugin):
         self.edit_url = config.get(constants.EDIT_ENDPOINT, None)
         self.authorization_header = config.get(constants.AUTHORIZATION_HEADER, 'Authorization').lower()
         self.logout_url = config.get(constants.LOGOUT_ENDPOINT, None)
+        self.authorization_endpoint = config.get(constants.AUTHORIZATION_ENDPOINT)
+
+        self.oauth2helper = oauth2.OAuth2Helper(self.authorization_endpoint)
 
         # Add this plugin's templates dir to CKAN's extra_template_paths, so
         # that CKAN will use this plugin's custom templates.
