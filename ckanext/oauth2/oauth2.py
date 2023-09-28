@@ -25,7 +25,7 @@ import base64
 import ckan.model as model
 import json
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, parse_qsl, urlunparse, urlencode
 import os
 
 from base64 import b64encode, b64decode
@@ -84,6 +84,7 @@ class OAuth2Helper(object):
         self.profile_api_mail_field = get_config(constants.PROFILE_FIELD_EMAIL)
         self.profile_api_groupmembership_field = get_config(constants.PROFILE_FIELD_GROUPMEMBERSHIP)
         self.sysadmin_group_name = get_config(constants.SYSADMIN_GROUP_NAME)
+        self.language_parameter = get_config(constants.LANGUAGE_PARAMETER)
 
         self.redirect_uri = urljoin(
             urljoin(
@@ -102,7 +103,28 @@ class OAuth2Helper(object):
         # This function is called by the log in function when the user is not logged in
         state = generate_state(came_from_url)
         oauth = OAuth2Session(self.client_id, redirect_uri=self.redirect_uri, scope=self.scope, state=state)
+
+        parsed_came_from_url = urlparse(came_from_url)
+
+        referrer_uri = came_from_url
+        if not bool(parsed_came_from_url.netloc):
+            referrer_uri = toolkit.url_for(came_from_url, _external=True)
+
         challenge_url, _ = oauth.authorization_url(challenge_endpoint)
+
+        challenge_params = {
+            'referrer': self.client_id,
+            'referrer_uri': referrer_uri,
+        }
+        if self.language_parameter:
+            challenge_params[self.language_parameter] = toolkit.h.lang()
+
+        url_parts = list(urlparse(challenge_url))
+        query = dict(parse_qsl(url_parts[4]))
+        query.update(challenge_params)
+        url_parts[4] = urlencode(query)
+        challenge_url = urlunparse(url_parts)
+
         log.debug('Challenge: Redirecting challenge to page {0}'.format(challenge_url))
         # CKAN 2.6 only supports bytes
         return toolkit.redirect_to(challenge_url)
