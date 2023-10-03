@@ -1,6 +1,6 @@
 CAME_FROM_FIELD = 'came_from'
 INITIAL_PAGE = '/dashboard'
-REDIRECT_URL = 'oauth2/callback'
+REDIRECT_URL = '/oauth2/callback'
 
 CLIENT_ID = 'ckanext.oauth2.client_id'
 CLIENT_SECRET = 'ckanext.oauth2.client_secret'
@@ -24,3 +24,4 @@ PROFILE_FIELD_FULLNAME = "ckanext.oauth2.profile_api_fullname_field"
 PROFILE_FIELD_EMAIL = "ckanext.oauth2.profile_api_mail_field"
 PROFILE_FIELD_GROUPMEMBERSHIP = "ckanext.oauth2.profile_api_groupmembership_field"
 SYSADMIN_GROUP_NAME = "ckanext.oauth2.sysadmin_group_name"
+LANGUAGE_PARAMETER = "ckanext.oauth2.language_parameter"

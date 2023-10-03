@@ -25,7 +25,7 @@ import base64
 import ckan.model as model
 import json
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, parse_qsl, urlunparse, urlencode
 import os
 
 from base64 import b64encode, b64decode
@@ -63,7 +63,7 @@ TRUES = ("true", "1", "on")
 
 class OAuth2Helper(object):
 
-    def __init__(self):
+    def __init__(self, authorization_endpoint):
 
         self.verify_https = os.environ.get('OAUTHLIB_INSECURE_TRANSPORT', '') == ""
         if self.verify_https and os.environ.get("REQUESTS_CA_BUNDLE", "").strip() != "":
@@ -72,7 +72,7 @@ class OAuth2Helper(object):
         self.jwt_enable = get_config(constants.JWT_ENABLE).lower() in TRUES
 
         self.legacy_idm = get_config(constants.LEGACY_IDM).strip().lower() in TRUES
-        self.authorization_endpoint = get_config(constants.AUTHORIZATION_ENDPOINT)
+        self.authorization_endpoint = authorization_endpoint
         self.token_endpoint = get_config(constants.TOKEN_ENDPOINT)
         self.profile_api_url = get_config(constants.PROFILE_API_URL)
         self.client_id = get_config(constants.CLIENT_ID)
@@ -84,6 +84,7 @@ class OAuth2Helper(object):
         self.profile_api_mail_field = get_config(constants.PROFILE_FIELD_EMAIL)
         self.profile_api_groupmembership_field = get_config(constants.PROFILE_FIELD_GROUPMEMBERSHIP)
         self.sysadmin_group_name = get_config(constants.SYSADMIN_GROUP_NAME)
+        self.language_parameter = get_config(constants.LANGUAGE_PARAMETER)
 
         self.redirect_uri = urljoin(
             urljoin(
@@ -98,14 +99,35 @@ class OAuth2Helper(object):
         elif self.scope == "":
             self.scope = None
 
-    def challenge(self, came_from_url):
+    def challenge(self, challenge_endpoint, came_from_url):
         # This function is called by the log in function when the user is not logged in
         state = generate_state(came_from_url)
         oauth = OAuth2Session(self.client_id, redirect_uri=self.redirect_uri, scope=self.scope, state=state)
-        auth_url, _ = oauth.authorization_url(self.authorization_endpoint)
-        log.debug('Challenge: Redirecting challenge to page {0}'.format(auth_url))
+
+        parsed_came_from_url = urlparse(came_from_url)
+
+        referrer_uri = came_from_url
+        if not bool(parsed_came_from_url.netloc):
+            referrer_uri = toolkit.url_for(came_from_url, _external=True)
+
+        challenge_url, _ = oauth.authorization_url(challenge_endpoint)
+
+        challenge_params = {
+            'referrer': self.client_id,
+            'referrer_uri': referrer_uri,
+        }
+        if self.language_parameter:
+            challenge_params[self.language_parameter] = toolkit.h.lang()
+
+        url_parts = list(urlparse(challenge_url))
+        query = dict(parse_qsl(url_parts[4]))
+        query.update(challenge_params)
+        url_parts[4] = urlencode(query)
+        challenge_url = urlunparse(url_parts)
+
+        log.debug('Challenge: Redirecting challenge to page {0}'.format(challenge_url))
         # CKAN 2.6 only supports bytes
-        return toolkit.redirect_to(auth_url)
+        return toolkit.redirect_to(challenge_url)
 
     def get_token(self):
         oauth = OAuth2Session(self.client_id, redirect_uri=self.redirect_uri, scope=self.scope)
