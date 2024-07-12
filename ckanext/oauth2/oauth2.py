@@ -125,7 +125,7 @@ class OAuth2Helper(object):
         url_parts[4] = urlencode(query)
         challenge_url = urlunparse(url_parts)
 
-        log.debug('Challenge: Redirecting challenge to page {0}'.format(challenge_url))
+        # log.debug('Challenge: Redirecting challenge to page {0}'.format(challenge_url))
         # CKAN 2.6 only supports bytes
         return toolkit.redirect_to(challenge_url)
 
@@ -240,7 +240,7 @@ class OAuth2Helper(object):
 
         This method simply delegates to another IIdentifier plugin if configured.
         '''
-        log.debug('Repoze OAuth remember')
+        # log.debug('Repoze OAuth remember')
         environ = toolkit.request.environ
         rememberer = self._get_rememberer(environ)
         identity = {'repoze.who.userid': user_name}

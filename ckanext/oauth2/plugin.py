@@ -57,7 +57,6 @@ class OAuth2Plugin(plugins.SingletonPlugin):
 
     # IAuthenticator
     def identify(self):
-        log.debug('identify')
 
         def _refresh_and_save_token(user_name):
             new_token = self.oauth2helper.refresh_token(user_name)
@@ -85,7 +84,7 @@ class OAuth2Plugin(plugins.SingletonPlugin):
         # If the authentication via API fails, we can still log in the user using session.
         if user_name is None and 'repoze.who.identity' in environ:
             user_name = environ['repoze.who.identity']['repoze.who.userid']
-            log.debug('User {} logged using session'.format(user_name))
+            # log.debug('User {} logged using session'.format(user_name))
 
         # If we have been able to log in the user (via API or Session)
         if user_name:
@@ -99,14 +98,13 @@ class OAuth2Plugin(plugins.SingletonPlugin):
     # IAuthenticator
     # noinspection PyMethodMayBeStatic
     def logout(self):
-        log.debug('logout')
         oauth_user_token = getattr(toolkit.g, "oauth_user_token", None)
         if oauth_user_token:
-            log.debug('logout with oauth_user_token = {}'.format(oauth_user_token))
+            # log.debug('logout with oauth_user_token = {}'.format(oauth_user_token))
             del toolkit.request.environ['repoze.who.identity']
             # check the validity of the token
             params = {"id_token_hint": oauth_user_token['id_token']}
-            log.debug('logout_url = [{}], params = [{}]'.format(self.logout_url, params))
+            # log.debug('logout_url = [{}], params = [{}]'.format(self.logout_url, params))
             requests.get(self.logout_url, params=params)
             self.oauth2helper.delete_stored_token(toolkit.g.user)
 
