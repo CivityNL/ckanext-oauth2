@@ -22,7 +22,19 @@ import re
 
 from setuptools import setup, find_packages
 
-from ckanext.oauth2 import __version__, __description__
+# Inspiration: https://stackoverflow.com/a/7071358/6064135
+# Inspiration: https://github.com/Justintime50/github-archive/blob/main/setup.py
+with open('ckanext/oauth2/__init__.py', 'r') as version_file:
+    version_groups = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file.read(), re.M)
+    if version_groups:
+        version = version_groups.group(1)
+    else:
+        raise RuntimeError('Unable to find version string!')
+    description_groups = re.search(r"^__description__ = ['\"]([^'\"]*)['\"]", version_file.read(), re.M)
+    if description_groups:
+        description = description_groups.group(1)
+    else:
+        raise RuntimeError('Unable to find description string!')        
 
 
 PYPI_RST_FILTERS = (
@@ -56,8 +68,8 @@ def rst(filename):
 
 setup(
     name='ckanext-oauth2',
-    version=__version__,
-    description=__description__,
+    version=version,
+    description=description,
     long_description='''
     The OAuth2 extension allows site visitors to login through an OAuth2 server.
     ''',
