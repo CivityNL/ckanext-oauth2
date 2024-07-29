@@ -30,6 +30,8 @@ with open('ckanext/oauth2/__init__.py', 'r') as version_file:
         version = version_groups.group(1)
     else:
         raise RuntimeError('Unable to find version string!')
+
+    version_file.seek(0)
     description_groups = re.search(r"^__description__ = ['\"]([^'\"]*)['\"]", version_file.read(), re.M)
     if description_groups:
         description = description_groups.group(1)
