@@ -93,7 +93,7 @@ class OAuth2Plugin(plugins.SingletonPlugin):
             toolkit.g.oauth_user_token_refresh = partial(_refresh_and_save_token, user_name)
         else:
             toolkit.g.user = None
-            log.warning('The user is not currently logged...')
+
 
     # IAuthenticator
     # noinspection PyMethodMayBeStatic
