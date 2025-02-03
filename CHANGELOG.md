@@ -3,7 +3,7 @@
 The file contains all specific changes to the ckanext-oauth2.
 
 ## 1.2.0 (...)
-
+- Remove logging for the when the user is not logged in.
 
 
 ## 1.1.0 (...)
